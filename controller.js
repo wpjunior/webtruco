@@ -6,13 +6,13 @@ var cards = require('./cards');
 function Player (socket) {
     events.EventEmitter.call(this);
     this.socket = socket;
+    this.num = -1;
 
     var nick = null;
     var obj = this;
     var pack = []; //cards
-    var num = -1;
     var time = -1;
-
+    var myCoup = false;
     var commands = {
         changeNick: function (args) {
             nick = args[0];
@@ -39,6 +39,14 @@ function Player (socket) {
             socket.destroy();
             return false;
         }
+    });
+    socket.on('coup', function (num) {
+        if (num >= pack.length)
+            return;
+
+        var cd = pack.splice(num, 1);
+        obj.emit('coup', cd);
+        obj.sendCards();
     });
 
     socket.on('end', function () {
@@ -67,8 +75,19 @@ function Player (socket) {
     }
 
     this.setNumber = function (num) {
-        num = num;
+        this.num = num;
         socket.emit("setPlayerNum", num);
+    }
+    this.gameStarted = function () {
+        socket.emit("gameStarted");
+    }
+    this.setPlayerCoup = function (playerNum) {
+        socket.emit("setPlayerCoup", playerNum);
+        myCoup = false;
+    }
+    this.setMyCoup = function () {
+        socket.emit("setMyCoup");
+        myCoup = true;
     }
 }
 
@@ -82,7 +101,8 @@ function Game () {
     var players = [];
     var closed = false;
     var created = new Date();
-    var player_coup = -1;
+    var playerCoup = -1;
+    var table = [];
 
     receiveData = function (data) {
         console.info(this);
@@ -99,21 +119,56 @@ function Game () {
             console.info('nickchanged', nick);
         });
 
+        p.on('coup', function (cardNum) {
+            if (table.length == 4)
+                obj.finishCoup()
+            if (playerCoup == 0)
+                playerCoup = 3;
+            else
+                playerCoup -= 1;
+
+            obj.sendPlayerCoups();
+            table.push([cardNum, p.num]);
+        });
+
         if (players.length == 4) {
             closed = true;
             this.startGame();
         }
     }
 
+    this.finishCoup = function () {
+        console.info('finishCoup');
+        table = [];
+    }
+
+    this.sendPlayerCoups = function () {
+        for (var i=0; i<4; i+=1) {
+            if (i == playerCoup)
+                players[i].setMyCoup();
+            else
+                players[i].setPlayerCoup(playerCoup);
+        }
+    }
+
     this.distribuiteCards = function () {
         var pack = cards.getCards(4, 3);
         
-        for (i=0; i<4; i+=1)
+        if (playerCoup == -1)
+            playerCoup = Math.floor(Math.random()*3);
+
+        for (var i=0; i<4; i+=1)
             players[i].setCards(pack[i]);
+
+        obj.sendPlayerCoups();
+        
     }
     this.startGame = function () {
+        for (var i=0; i<players.length; i+=1) {
+            players[i].gameStarted();
+        }
         obj.emit("start");
-        console.info('Starting Game');
+        
         obj.distribuiteCards();
     }
 
