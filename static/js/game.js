@@ -31,7 +31,9 @@
 
         var socket = io.connect(
             'http://localhost:3000',
-            {'reconnect': false})
+            {reconnect: false,
+             transports: ['websocket', 'flashsocket']
+            });
 
         socket.on('connect', function () {
             $('div.blockdisplay').fadeOut();
@@ -130,7 +132,6 @@
                 .removeClass('time0 time1')
                 .addClass('time'+time);
         }
-        console.info(cards);
     };
 
     Game.prototype.setMyCoup = function () {

@@ -62,10 +62,9 @@ Player.prototype.sendCards = function () {
     var i = 0;
     var namedCards = [];
     
-    for (i=0; i<this.cards.length; i+=1) {
-        var cardId = this.cards[i];
+    this.cards.forEach(function (cardId) {
         namedCards.push(cards.getCard(cardId, true));
-    }
+    });
 
     this.socket.emit("setPlayerCards", namedCards);
 }
@@ -177,23 +176,23 @@ Game.prototype.sendPlayerCoups = function () {
     var playerCardsLength = [];
     var verboseTable = [];
 
-    for (var i=0; i<4; i+=1)
-        playerCardsLength.push(this.players[i].cards.length);
+    this.players.forEach(function (player) {
+        playerCardsLength.push(player.cards.length);
+    });
 
-    for (var i=0; i<this.table.length; i+=1) {
-        var cardId = this.table[i][0];
-
+    this.table.forEach(function (coup) {
         verboseTable.push([
-            cards.getCard(cardId, true),
-            this.table[i][1]
+            cards.getCard(coup[0], true),
+           coup[1]
         ]);
-    }
+    });
 
     b.emit('setPlayerCoup', this.playerCoup, 
            playerCardsLength, verboseTable);
 
-    for (var i=0; i<4; i+=1)
-        this.players[i].myCoup = false;
+    this.players.forEach(function (p) {
+        p.myCoup = false;
+    });
 
     this.players[this.playerCoup].myCoup = true;
 };
@@ -204,26 +203,28 @@ Game.prototype.distribuiteCards = function () {
     if (this.playerCoup == -1)
         this.playerCoup = Math.floor(Math.random()*3);
 
-    for (var i=0; i<4; i+=1)
-        this.players[i].setCards(pack[i]);
+    this.players.forEach(function (p, i) {
+        p.setCards(pack[i]);
+    });
 
     this.sendPlayerCoups();
 };
 
 Game.prototype.startGame = function () {
-    for (var i=0; i<this.players.length; i+=1) {
-        this.players[i].gameStarted();
-    }
+    this.players.forEach(function (p) {
+        p.gameStarted();
+    });
+
     this.emit("start");
-        
     this.distribuiteCards();
 }
 
 Game.prototype.endGame = function (reason) {
     this.online = false;
 
-    for (var i=0; i<4; i+=1)
-        this.players[i].endGame(reason);
+    this.players.forEach(function(p) {
+        p.endGame(reason);
+    });
 
     this.players = [];
     this.emit("end");    
