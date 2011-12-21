@@ -17,16 +17,9 @@
 
 var util = require("util");
 var events = require('events');
-var cards = require('./cards');
+var cards = require('./cards.js');
 
 var lastGameId = 0;
-var playerCommands = {
-    changeNick: function (player, args) {
-        player.nick = args[0];
-        player.emit('nickchanged', nick);
-    },
-};
-
 
 var Player = function (socket) {
     events.EventEmitter.call(this);
@@ -44,25 +37,10 @@ Player.prototype._init = function(socket) {
     this.cards = [];
     this.time = -1;
     this.myCoup = false;
-
-    socket.on('message', function (message) {
-        console.info(message);
-        try {
-            data = JSON.parse(message);
-            
-            if ((!data.cmd)||(!data.args))
-                return;
-
-            cmd = playerCommands[data.cmd];
-            cmd(this, data.args);
-
-        } catch (err) {
-            console.info(err);
-            console.info('Closing connection');
-            socket.end();
-            socket.destroy();
-            return false;
-        }
+    
+    socket.on('nickchanged', function (nick) {
+        me.nick = nick;
+        me.emit('nickchanged', nick);
     });
 
     socket.on('coup', function (num) {
@@ -70,16 +48,13 @@ Player.prototype._init = function(socket) {
             return;
 
         var cd = me.cards.splice(num, 1);
-        me.emit('coup', cd);
+
+        me.emit('coup', cd[0]);
         me.sendCards();
     });
 
-    socket.on('end', function () {
-        console.info('end');
-    });
-
-    socket.on('error', function(err) {
-        console.info(err);
+    socket.on('disconnect', function () {
+        me.emit('disconnect');
     });
 }
 
@@ -105,28 +80,32 @@ Player.prototype.setNumber = function (num) {
     this.socket.emit("setPlayerNum", num);
 };
 
-Player.prototype.gameStarted = function (gameId) {
-    this.socket.emit("gameStarted", gameId);
+Player.prototype.gameStarted = function () {
+    this.socket.emit("gameStarted");
 };
 
-Player.prototype.setPlayerCoup = function (playerNum) {
-    this.socket.emit("setPlayerCoup", playerNum);
-    this.myCoup = false;
-};
-  
-Player.prototype.setMyCoup = function () {
-    this.socket.emit("setMyCoup");
-    this.myCoup = true;
-};
 
-var Game = function () {
+Player.prototype.endGame = function (reason) {
+    this.socket.emit("endGame", reason);
+    this.removeAllListeners();
+    this.socket.disconnect();
+}
+
+Player.prototype.join = function (gameId) {
+    this.socket.join(gameId.toString());
+    this.socket.emit('join', gameId);
+}
+
+var Game = function (mainSocket) {
     events.EventEmitter.call(this);
     
     this.players = [];
     this.closed = false;
+    this.online = true;
     this.created = new Date();
     this.playerCoup = -1;
     this.table = [];
+    this.mainSocket = mainSocket;
 
     lastGameId++;
     this.id = lastGameId;
@@ -134,10 +113,24 @@ var Game = function () {
 
 util.inherits(Game, events.EventEmitter);
 
+Game.prototype.pushCard = function (cardNum, pNum) {
+    this.table.push([cardNum, pNum]);
+
+    this.table.sort(function (c1, c2) {
+        var v1 = cards.getCardValue(c1[0]);
+        var v2 = cards.getCardValue(c2[0]);
+
+        return v2 - v1;
+    });
+};
+
 Game.prototype.addPlayer = function (p) {
     var me = this;
+
     if (this.closed)
         throw "This Game is Closed"
+
+    p.join(this.id);
 
     this.players.push(p);
     p.setNumber(this.players.indexOf(p));
@@ -154,8 +147,14 @@ Game.prototype.addPlayer = function (p) {
         else
             me.playerCoup -= 1;
 
+        me.pushCard(cardNum, p.num);
+       
         me.sendPlayerCoups();
-        me.table.push([cardNum, p.num]);
+    });
+
+    p.on('disconnect', function () {
+        if (this.online)
+            this.endGame("Jogador "+this.num+" desconectou");
     });
 
     if (this.players.length == 4) {
@@ -169,13 +168,34 @@ Game.prototype.finishCoup = function () {
     this.table = [];
 };
 
+Game.prototype.getBroadcast = function() {
+    return this.mainSocket.sockets.in(this.id.toString());
+};
+
 Game.prototype.sendPlayerCoups = function () {
-    for (var i=0; i<4; i+=1) {
-        if (i == this.playerCoup)
-            this.players[i].setMyCoup();
-        else
-            this.players[i].setPlayerCoup(this.playerCoup);
+    var b = this.getBroadcast()
+    var playerCardsLength = [];
+    var verboseTable = [];
+
+    for (var i=0; i<4; i+=1)
+        playerCardsLength.push(this.players[i].cards.length);
+
+    for (var i=0; i<this.table.length; i+=1) {
+        var cardId = this.table[i][0];
+
+        verboseTable.push([
+            cards.getCard(cardId, true),
+            this.table[i][1]
+        ]);
     }
+
+    b.emit('setPlayerCoup', this.playerCoup, 
+           playerCardsLength, verboseTable);
+
+    for (var i=0; i<4; i+=1)
+        this.players[i].myCoup = false;
+
+    this.players[this.playerCoup].myCoup = true;
 };
 
 Game.prototype.distribuiteCards = function () {
@@ -192,43 +212,51 @@ Game.prototype.distribuiteCards = function () {
 
 Game.prototype.startGame = function () {
     for (var i=0; i<this.players.length; i+=1) {
-        this.players[i].gameStarted(this.id);
+        this.players[i].gameStarted();
     }
     this.emit("start");
         
     this.distribuiteCards();
 }
 
-Game.prototype.endGame = function () {
-    this.emit("close");    
+Game.prototype.endGame = function (reason) {
+    this.online = false;
+
+    for (var i=0; i<4; i+=1)
+        this.players[i].endGame(reason);
+
+    this.players = [];
+    this.emit("end");    
 }
 
 
-var GamesController = function () {
+var GamesController = function (mainSocket) {
     this.games = [];
     this.lastOpenedGame = null;
+    this.mainSocket = mainSocket;
 };
 
-GamesController.prototype._onGameClosed = function () {
-    console.info(this);
+GamesController.prototype._onGameClosed = function (game) {
+    var idx = this.games.indexOf(game);
+    this.games.splice(idx, 1);
 };
 
-GamesController.prototype._onGameStarted = function () {
+GamesController.prototype._onGameStarted = function (game) {
     this.lastOpenedGame = null;
 }
 
 GamesController.prototype.generateNewGame = function () {
     var me = this;
 
-    var g = new Game();
+    var g = new Game(this.mainSocket);
     this.games.push(g);
         
-    g.on("close", function () {
-        me._onGameClosed();
+    g.on("end", function () {
+        me._onGameClosed(this);
     });
 
     g.on("start", function () {
-        me._onGameStarted();
+        me._onGameStarted(this);
     });
 
     this.lastOpenedGame = g;

@@ -49,8 +49,19 @@ app.get('/', function(req, res){
 app.listen(3000);
 console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 
+
+
 var io = sio.listen(app);
-var ctl = new controller.GamesController();
+io.configure(function () {
+  io.set('transports', ['websocket', 'flashsocket']);
+});
+
+io.configure('development', function () {
+  io.set('transports', ['websocket', 'flashsocket']);
+  io.enable('log');
+});
+
+var ctl = new controller.GamesController(io);
 
 io.sockets.on('connection', function (socket) {
   var player = new controller.Player(socket);

@@ -89,6 +89,11 @@ function getCard (cardId, normalized) {
     return card
 }
 
+var getCardValue = function (cardId) {
+    return CARDS[cardId][2];
+}
+
 this.getCard = getCard;
 this.getCards = getCards;
+this.getCardValue = getCardValue;
 this.CARDS = CARDS;

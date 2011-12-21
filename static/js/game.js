@@ -29,11 +29,23 @@
 	this.settings = $.extend({
 	}, options || {});
 
-        var socket = io.connect('http://localhost:3000');
+        var socket = io.connect(
+            'http://localhost:3000',
+            {'reconnect': false})
 
         socket.on('connect', function () {
+            $('div.blockdisplay').fadeOut();
             $('#waiting').fadeIn();
-            console.info('connectado');
+        });
+
+        socket.on('connecting', function () {
+            $('div.blockdisplay').fadeOut();
+            $('#connecting').fadeIn();
+        });
+
+        socket.on('disconnect', function () {
+            $('div.blockdisplay').fadeOut();
+            $('#disconnected').fadeIn();
         });
         
         socket.on('setPlayerNum', function (num) {
@@ -45,39 +57,30 @@
             me.drawCards();
         });
 
-        socket.on('gameStarted', function (gameId) {
+        socket.on('gameStarted', function () {
             $('#waiting').fadeOut();
-            console.info('jogo iniciado', gameId);
         });
 
-        socket.on('setMyCoup', function () {
-            me.myCoup = true;
-
-            $('span.coup').fadeOut();
-            $('#player_'+me.playerNum+' span.coup').fadeIn();
-
-            $('#player_'+me.playerNum+' .card')
-		.hover(function (e) {
-		    $(this).animate({opacity: 0.8, marginTop: 20,}, 500 );
-		}, function (e) {
-		    $(this).animate({opacity: 1.0, marginTop: 0,}, 500 );
-		})
-		.click(function (e) {
-		    var num = $(this).attr('rel');
-                    if (me.myCoup)
-                        me.socket.emit('coup', num);
-		});
+        socket.on('join', function (gameId) {
+            $('#game_id').text(gameId);
         });
 
-        socket.on('setPlayerCoup', function (num) {
-            me.myCoup = false;
-
-            $('span.coup').fadeOut();
-            $('#player_'+num+' span.coup').fadeIn();
+        socket.on('endGame', function (reason) {
+            console.info(reason);
         });
+        
+        socket.on('setPlayerCoup', function (num, cardsLength, tableCards) {
+            me.setCardsLength(cardsLength);
+            me.drawTableCards(tableCards);
 
-        socket.on('reconnecting', function () {
-            console.info('System', 'Attempting to re-connect to the server');
+            if (num == me.playerNum) {
+                me.setMyCoup();
+            } else {
+                me.myCoup = false;
+
+                $('span.coup').fadeOut();
+                $('#player_'+num+' span.coup').fadeIn();
+            }
         });
 
         socket.on('error', function (e) {
@@ -85,15 +88,84 @@
         });
 
         this.socket = socket;
-        
+    };
+
+    Game.prototype.setCardsLength = function (length) {
+        /*
+         * update cards length of other players
+         */
+
+        for (var i=0; i<4; i+=1) {
+            if (i==this.playerNum) continue;
+            $('div#player_'+i+' .cards img')
+	        .attr('src', '').parent().hide();
+
+            if ((i % 2) == 0)
+                var time=1;
+            else
+                var time=0;
+
+            for (var j=0; j<length[i]; j+=1) {
+                $('div#player_'+i+' .card[rel="'+j+'"] img')
+	            .attr('src', "/cards/backtime"+time+".png").parent().show();
+            }
+        }
+    };
+
+    Game.prototype.drawTableCards = function (cards) {
+        $('div#game_table .cards img')
+	    .attr('src', '').parent().fadeOut();
+            
+        for (i=0; i<cards.length; i+=1) {
+	    var c = cards[i][0];
+            
+            if ((cards[i][1] % 2) == 0)
+                var time=0;
+            else
+                var time=1;
+
+	    $('div#game_table .card[rel="'+i+'"] img')
+	        .attr('src', "/cards/"+c+".png").parent().fadeIn();
+            $('div#game_table .card[rel="'+i+'"]')
+                .removeClass('time0 time1')
+                .addClass('time'+time);
+        }
+        console.info(cards);
+    };
+
+    Game.prototype.setMyCoup = function () {
+        /*
+         * Activate coup support
+         */
+
+        var me = this;
+        this.myCoup = true;
+
+        $('span.coup').fadeOut();
+        $('#player_'+this.playerNum+' span.coup').fadeIn();
+
+        $('#player_'+this.playerNum+' .card')
+	    .hover(function (e) {
+		$(this).animate({opacity: 0.8, marginTop: 20,}, 500 );
+	    }, function (e) {
+		$(this).animate({opacity: 1.0, marginTop: 0,}, 500 );
+	    })
+	    .click(function (e) {
+		var num = $(this).attr('rel');
+                if (me.myCoup)
+                    me.socket.emit('coup', num);
+	    });
     };
 
     Game.prototype.drawCards = function () {
+        /*
+         * Draw my cards
+         */
         $('div#player_'+this.playerNum+' .cards img')
 	    .attr('src', '').parent().fadeOut();
             
         for (i=0; i<this.cards.length; i+=1) {
-	    c = this.cards[i];
+	    var c = this.cards[i];
 	    $('div#player_'+this.playerNum+' .card[rel="'+i+'"] img')
 	        .attr('src', "/cards/"+c+".png").parent().fadeIn();
         }

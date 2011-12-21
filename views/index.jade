@@ -3,62 +3,81 @@ html(lang="en")
   body
     div#container
       div#game
-        div#waiting Esperando Jogadores
+        div#waiting.blockdisplay Esperando Jogadores
+        div#connecting.blockdisplay Conectando
+        div#disconnected.blockdisplay Disconectado
+           p algum jogador se desconectou.
+           a(href="/") Reconectar
+
         div#status
+          table
+            tr
+              td Sala número:
+              td#game_id
+
+            tr
+              td.label_points.time0 Time 01:
+              td.points.time0
+
+            tr
+              td.label_points.time1 Time 02:
+              td.points.time1
+            
+        div#table-top        
+          div#player_0.player.time0
+            span.nick
+            span.coup Jogada
+            div.cards
+              div.card(rel=0)
+                img
+              div.card(rel=1)
+                img
+              div.card(rel=2)
+                img
         
-        div#player_0.player.time0
-          span.nick
-          span.coup Jogada
-          div.cards
-            div.card(rel=0)
-              img
-            div.card(rel=1)
-              img
-            div.card(rel=2)
-              img
+        div#table-center
+          div#player_1.player.time1
+            span.nick
+            span.coup Jogada
+            div.cards
+              div.card(rel=0)
+                img
+              div.card(rel=1)
+                img
+              div.card(rel=2)
+                img
             
-        div#player_1.player.time1
-          span.nick
-          span.coup Jogada
-          div.cards
-            div.card(rel=0)
-              img
-            div.card(rel=1)
-              img
-            div.card(rel=2)
-              img
+          div#game_table
+            div.cards
+              div.card(rel=0)
+                img
+              div.card(rel=1)
+                img
+              div.card(rel=2)
+                img
+              div.card(rel=3)
+                img
             
-        div#game_table
-          div.cards
-            div.card(rel=0)
-              img
-            div.card(rel=1)
-              img
-            div.card(rel=2)
-              img
-            div.card(rel=3)
-              img
-            
-        div#player_3.player.time1
-          span.nick
-          span.coup Jogada
-          div.cards
-            div.card(rel=0)
-              img
-            div.card(rel=1)
-              img
-            div.card(rel=2)
-              img
-            
-        div#player_2.player.time0
-          span.nick
-          span.coup Jogada
-          div.cards
-            div.card(rel=0)
-              img
-            div.card(rel=1)
-              img
-            div.card(rel=2)
-              img
-            
-        
+          div#player_3.player.time1
+            span.nick
+            span.coup Jogada
+            div.cards
+              div.card(rel=0)
+                img
+              div.card(rel=1)
+                img
+              div.card(rel=2)
+                img
+          br(clear="all")
+    
+        div#table-bottom        
+          div#player_2.player.time0
+            span.nick
+            span.coup Jogada
+            div.cards
+              div.card(rel=0)
+                img
+              div.card(rel=1)
+                img
+              div.card(rel=2)
+                img
