@@ -1,55 +1,62 @@
+/*
+ *  Copyright (C) 2011-2012 Wilson Pinto Júnior <wilsonpjunior@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
 (function($){
     var Game = function(element, options)
     {
-	var elem = $(element);
-	var obj = this;
-        var playerNum = -1;
-        var cards = [];
-        var myCoup = false;
+        var me = this;
+
+	this.elem = $(element);
+        this.playerNum = -1;
+        this.cards = [];
+        this.myCoup = false;
 
 	this.settings = $.extend({
 	}, options || {});
 
-        
-        this.drawCards = function () {
-            $('div#player_'+playerNum+' .cards img')
-	        .attr('src', '').parent().fadeOut();
-            
-            for (i=0; i<cards.length; i+=1) {
-	        c = cards[i];
-	        $('div#player_'+playerNum+' .card[rel="'+i+'"] img')
-	            .attr('src', "/cards/"+c+".png").parent().fadeIn();
-            }
-        }
-	
-	var socket = io.connect('http://localhost:3000');
-	
-	socket.on('connect', function () {
+        var socket = io.connect('http://localhost:3000');
+
+        socket.on('connect', function () {
             $('#waiting').fadeIn();
             console.info('connectado');
         });
         
         socket.on('setPlayerNum', function (num) {
-            playerNum = num;
+            me.playerNum = num;
         });
         
         socket.on('setPlayerCards', function (pack) {
-            cards = pack;
-            obj.drawCards();
+            me.cards = pack;
+            me.drawCards();
         });
 
-        socket.on('gameStarted', function () {
+        socket.on('gameStarted', function (gameId) {
             $('#waiting').fadeOut();
-            console.info('jogo iniciado');
+            console.info('jogo iniciado', gameId);
         });
 
         socket.on('setMyCoup', function () {
-            myCoup = true;
+            me.myCoup = true;
 
             $('span.coup').fadeOut();
-            $('#player_'+playerNum+' span.coup').fadeIn();
+            $('#player_'+me.playerNum+' span.coup').fadeIn();
 
-            $('#player_'+playerNum+' .card')
+            $('#player_'+me.playerNum+' .card')
 		.hover(function (e) {
 		    $(this).animate({opacity: 0.8, marginTop: 20,}, 500 );
 		}, function (e) {
@@ -57,13 +64,13 @@
 		})
 		.click(function (e) {
 		    var num = $(this).attr('rel');
-                    if (myCoup)
-                        socket.emit('coup', num);
+                    if (me.myCoup)
+                        me.socket.emit('coup', num);
 		});
         });
 
         socket.on('setPlayerCoup', function (num) {
-            myCoup = false;
+            me.myCoup = false;
 
             $('span.coup').fadeOut();
             $('#player_'+num+' span.coup').fadeIn();
@@ -76,7 +83,22 @@
         socket.on('error', function (e) {
             console.info('System', e ? e : 'A unknown error occurred');
         });
-    }
+
+        this.socket = socket;
+        
+    };
+
+    Game.prototype.drawCards = function () {
+        $('div#player_'+this.playerNum+' .cards img')
+	    .attr('src', '').parent().fadeOut();
+            
+        for (i=0; i<this.cards.length; i+=1) {
+	    c = this.cards[i];
+	    $('div#player_'+this.playerNum+' .card[rel="'+i+'"] img')
+	        .attr('src', "/cards/"+c+".png").parent().fadeIn();
+        }
+    };
+	
     $.fn.game = function(options)
     {
 
