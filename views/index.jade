@@ -5,7 +5,7 @@ html(lang="en")
       div#game
         div#waiting.blockdisplay Esperando Jogadores
         div#connecting.blockdisplay Conectando
-        div#disconnected.blockdisplay Disconectado
+        div#disconnected.blockdisplay Desconectado
            p algum jogador se desconectou.
            a(href="/") Reconectar
 
@@ -22,6 +22,10 @@ html(lang="en")
             tr
               td.label_points.time1 Time 02:
               td.points.time1
+
+            tr
+              td.label_rounds Jogadas:
+              td.rounds
             
         div#table-top        
           div#player_0.player.time0

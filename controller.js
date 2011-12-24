@@ -59,7 +59,6 @@ Player.prototype._init = function(socket) {
 }
 
 Player.prototype.sendCards = function () {
-    var i = 0;
     var namedCards = [];
     
     this.cards.forEach(function (cardId) {
@@ -95,6 +94,10 @@ Player.prototype.join = function (gameId) {
     this.socket.emit('join', gameId);
 }
 
+Player.prototype.getTime = function () {
+    return this.num % 2;
+}
+
 var Game = function (mainSocket) {
     events.EventEmitter.call(this);
     
@@ -106,6 +109,8 @@ var Game = function (mainSocket) {
     this.table = [];
     this.mainSocket = mainSocket;
 
+    this.rounds = [];
+
     lastGameId++;
     this.id = lastGameId;
 };
@@ -113,14 +118,23 @@ var Game = function (mainSocket) {
 util.inherits(Game, events.EventEmitter);
 
 Game.prototype.pushCard = function (cardNum, pNum) {
-    this.table.push([cardNum, pNum]);
 
+    if (this.table.length == 4)
+        this.table = [];
+
+    this.table.push([cardNum, pNum]);
     this.table.sort(function (c1, c2) {
         var v1 = cards.getCardValue(c1[0]);
         var v2 = cards.getCardValue(c2[0]);
 
         return v2 - v1;
     });
+
+    if (this.table.length == 4)
+        this.nextRound();
+    else 
+        this.nextCoup();
+    
 };
 
 Game.prototype.addPlayer = function (p) {
@@ -139,15 +153,7 @@ Game.prototype.addPlayer = function (p) {
     });
 
     p.on('coup', function (cardNum) {
-        if (me.table.length == 4)
-            me.finishCoup()
-        if (me.playerCoup == 0)
-            me.playerCoup = 3;
-        else
-            me.playerCoup -= 1;
-
         me.pushCard(cardNum, p.num);
-       
         me.sendPlayerCoups();
     });
 
@@ -162,9 +168,34 @@ Game.prototype.addPlayer = function (p) {
     }
 };
 
-Game.prototype.finishCoup = function () {
-    console.info('finishCoup');
-    this.table = [];
+Game.prototype.nextCoup = function () {
+    if (this.playerCoup == 0)
+        this.playerCoup = 3;
+    else
+        this.playerCoup -= 1;
+};
+
+Game.prototype.nextRound = function () {
+    var _this = this;
+
+    var maxCard = this.table[0][0];
+    var maxCardPlayer = this.table[0][1];
+    var maxCardValue = cards.getCardValue(this.table[0][0]);
+    var maxCardTime = this.players[maxCardPlayer].getTime();
+
+    // empate de cartas
+    if ((maxCardValue==cards.getCardValue(this.table[1][0]))&&
+        (maxCardTime!=this.players[this.table[1][1]].getTime())) {
+
+        this.rounds.push(-1);
+        this.nextCoup();
+    } else {
+        this.rounds.push(maxCardTime);
+        this.playerCoup = maxCardPlayer;
+    }
+    
+    var b = this.getBroadcast();
+    b.emit('setRounds', this.rounds);
 };
 
 Game.prototype.getBroadcast = function() {
@@ -172,7 +203,7 @@ Game.prototype.getBroadcast = function() {
 };
 
 Game.prototype.sendPlayerCoups = function () {
-    var b = this.getBroadcast()
+    var b = this.getBroadcast();
     var playerCardsLength = [];
     var verboseTable = [];
 

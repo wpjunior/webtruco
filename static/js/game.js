@@ -70,6 +70,19 @@
         socket.on('endGame', function (reason) {
             console.info(reason);
         });
+
+        socket.on('setRounds', function (rounds) {
+            $('td.rounds').empty();
+            for (var i=0; i<rounds.length; i++) {
+                var r = rounds[i];
+                
+                if (r>-1)
+                    $('<span class="round time'+r+'">&nbsp</p>').appendTo('td.rounds');
+                else
+                    $('<span class="round null">&nbsp</span>').appendTo('td.rounds');
+            }
+            console.info(rounds);
+        });
         
         socket.on('setPlayerCoup', function (num, cardsLength, tableCards) {
             me.setCardsLength(cardsLength);
